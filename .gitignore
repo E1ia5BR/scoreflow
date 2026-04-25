@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+.env
+*.log
+
+# Frontend (Node)
+node_modules/
+dist/
+build/
+.npm/
+.eslintcache
+
+# IDEs
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# macOS / Windows
+.DS_Store
+Thumbs.db
+
+# Project specific ignores
+storage/
+tests/test_out*
+*.pdf
+*.xml
+*.midi
+*.mid
+*.wav
+redis_errors.txt
+worker_logs*.txt
+error.log
+test.log
+summary.json
+scoreflow-spec.docx

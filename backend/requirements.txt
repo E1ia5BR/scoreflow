@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+python-multipart
+celery
+redis
+music21
+magenta
+soundfile
+mido
+librosa
+scipy
+noisereduce
+# NOTE: do NOT add soxr here. It has a broken DLL on Windows (soxr_ext import fails).
+# librosa will use scipy as the resampler fallback, which works correctly.
+

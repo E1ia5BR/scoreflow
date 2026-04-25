@@ -1,0 +1,1005 @@
+
+
+
+
+
+
+
+SCOREFLOW
+Audio → MusicXML Converter
+
+Briefing de Produto, Especificação Funcional &amp; Design UX/UI
+
+
+
+
+
+
+
+
+Versão 1.0 — MVP
+Fevereiro 2026
+Documento confidencial — uso interno do time de produto e engenharia
+
+Índice
+TOC \h \o &quot;1-3&quot;
+
+
+1. Resumo Executivo
+1.1 Português
+O ScoreFlow é uma aplicação web que transforma arquivos de áudio (MP3 ou WAV) em partituras digitais no formato MusicXML. O fluxo principal é simples: o usuário faz upload de um único arquivo de áudio, o backend processa automaticamente usando Magenta (conversão áudio → MIDI) e music21 (conversão MIDI → MusicXML), e o resultado é entregue com pré-visualização da partitura e opções de download. O público-alvo principal são músicos, compositores, estudantes de música, produtores e professores que precisam converter gravações em notação musical de forma rápida, sem conhecimento técnico avançado. O produto prioriza simplicidade, clareza de feedback durante o processamento e qualidade da transcrição.
+1.2 English
+ScoreFlow is a web application that transforms audio files (MP3 or WAV) into digital sheet music in MusicXML format. The core flow is simple: the user uploads a single audio file, the backend processes it automatically using Magenta (audio-to-MIDI) and music21 (MIDI-to-MusicXML), and the result is delivered with a score preview and download options. The primary target audience includes musicians, composers, music students, producers, and teachers who need to convert recordings into musical notation quickly, without advanced technical knowledge. The product prioritizes simplicity, clear processing feedback, and transcription quality.
+
+2. Mapa de Funcionalidades
+2.1 MVP (Obrigatório)
+Upload de arquivo único (MP3/WAV), com validação de formato e tamanho (max. 200 MB).
+Barra de progresso com 5 estados mapeados ao backend (Uploading → Analyzing → Transcribing → Converting → Ready).
+Tela de resultado com pré-visualização da partitura MusicXML renderizada.
+Download do MusicXML, MIDI intermediário e log de processamento.
+Histórico dos últimos 10 arquivos processados (nome, data, status, link rápido).
+Localização PT/EN completa (interface, mensagens de erro, tooltips).
+Dark/Light mode com persistência de preferência.
+Página de conta básica (nome, e-mail, idioma, tema).
+Aviso de privacidade LGPD no upload.
+Tratamento de erros com mensagens claras em cada etapa.
+2.2 Fase 2 (Extras)
+Reprocessamento com parâmetros ajustáveis (quantização, sensibilidade, instrumento).
+Player de áudio inline com sincronização partitura ↔ playback.
+Comparação visual MIDI vs MusicXML (piano roll lado a lado).
+Edição básica da partitura no browser (arrastar notas, corrigir erros).
+Suporte a polifonia avançada (separação de vozes com Spleeter/Demucs prévia).
+API pública para integração com DAWs e apps de educação musical.
+Sistema de planos (free/pro) com quotas diferenciadas.
+Notificações por e-mail quando o processamento terminar.
+Export adicional: PDF da partitura, LilyPond.
+Onboarding interativo para novos usuários.
+Justificativa da separação: o MVP foca no fluxo completo ponta-a-ponta com feedback claro. Fase 2 adiciona profundidade sem bloquear o lançamento.
+
+3. Fluxo do Usuário / User Journey
+3.1 Caso Principal: Single Upload → Resultado
+O fluxo principal é linear e otimista. Cada estado tem um fallback de erro específico.
+
+Etapa
+Ação do Usuário
+Resposta do Sistema
+Estado da UI
+Transição
+1. Landing
+Acessa a página principal
+Exibe área de upload com drag &amp; drop e botão
+Idle
+Usuário arrasta/seleciona arquivo
+2. Seleção
+Arrasta ou seleciona arquivo
+Valida formato (MP3/WAV) e tamanho (≤200 MB)
+Validating
+Sucesso → inicia upload; Falha → erro inline
+3. Upload
+Aguarda
+Envia arquivo ao servidor; progress bar em &apos;Uploading&apos;
+Uploading
+100% → próximo estado
+4. Análise
+Aguarda
+Backend analisa áudio (duração, sample rate, canais)
+Analyzing
+Sucesso → Transcribing
+5. Transcrição
+Aguarda
+Magenta converte áudio → MIDI
+Transcribing
+Sucesso → Converting
+6. Conversão
+Aguarda
+music21 converte MIDI → MusicXML
+Converting
+Sucesso → Ready
+7. Resultado
+Visualiza partitura, baixa arquivos
+Exibe preview + botões de download
+Ready
+Novo upload ou histórico
+
+3.2 Fluxos Alternativos e de Erro
+Arquivo inválido: usuário recebe mensagem inline imediata, área de upload permanece ativa.
+Falha no upload (rede): retry automático (3x), depois mensagem com botão de tentar novamente.
+Timeout no processamento: após 5 minutos sem progresso, notifica usuário com opção de cancelar ou aguardar.
+Erro no Magenta: mensagem específica (&quot;Não foi possível transcrever este áudio&quot;) + sugestão (tentar outro arquivo, mono, melhor qualidade).
+Erro no music21: mensagem (&quot;Erro na conversão para partitura&quot;) + disponibiliza MIDI parcial para download.
+Usuário tenta novo upload durante processamento: modal de confirmação (&quot;Cancelar processamento atual?&quot;). Se sim, cancela job e aceita novo arquivo.
+
+4. Componente de Upload
+4.1 Regras Funcionais
+Aceita exatamente 1 arquivo por vez. Se o usuário arrastar múltiplos, aceitar apenas o primeiro e exibir aviso.
+Formatos aceitos: .mp3, .wav (MIME types: audio/mpeg, audio/wav, audio/x-wav, audio/wave).
+Tamanho máximo: 200 MB. Justificativa: cobre gravações WAV de até ~18 minutos em 44.1kHz/16bit stereo, suficiente para a grande maioria das peças musicais.
+Duração máxima recomendada: 10 minutos (aviso soft, não bloqueia). Justificativa: transcrições longas perdem precisão e aumentam custo computacional.
+Botão de upload desabilitado durante processamento ativo (spinner no botão).
+Drag &amp; drop ativo: área destaca-se com borda tracejada e cor de accent ao receber hover de arquivo.
+4.2 Validações
+Validação
+Mensagem PT
+Mensagem EN
+Formato inválido
+Formato não suportado. Envie um arquivo MP3 ou WAV.
+Unsupported format. Please upload an MP3 or WAV file.
+Arquivo muito grande
+Arquivo excede o limite de 200 MB. Tente um arquivo menor.
+File exceeds the 200 MB limit. Try a smaller file.
+Múltiplos arquivos
+Envie apenas um arquivo por vez. Usamos o primeiro selecionado.
+Please upload one file at a time. We used the first one selected.
+Arquivo corrompido
+Não foi possível ler este arquivo. Verifique se ele não está danificado.
+Unable to read this file. Please check if it is corrupted.
+Duração &gt; 10min
+Áudio longo detectado. A transcrição pode demorar mais e perder precisão.
+Long audio detected. Transcription may take longer and lose accuracy.
+
+4.3 Textos do Componente
+Elemento
+PT
+EN
+Título da área
+Arraste seu áudio aqui
+Drop your audio here
+Subtítulo
+ou clique para selecionar um arquivo MP3 ou WAV
+or click to select an MP3 or WAV file
+Botão principal
+Enviar áudio
+Upload audio
+Botão durante upload
+Enviando...
+Uploading...
+Botão desabilitado
+Processando...
+Processing...
+Link secundário
+Cancelar
+Cancel
+Limite exibido
+Máx. 200 MB • MP3 ou WAV
+Max 200 MB • MP3 or WAV
+
+4.4 UX: Novo Upload Durante Processamento
+Quando o usuário tenta enviar um novo arquivo enquanto há um job ativo:
+O componente de upload fica visualmente desabilitado (opacidade 50%, cursor not-allowed).
+Se o usuário tentar arrastar um arquivo, aparece um tooltip: &quot;Aguarde o processamento atual&quot; / &quot;Wait for current processing&quot;.
+Um link discreto &quot;Cancelar processamento atual&quot; / &quot;Cancel current processing&quot; fica visível abaixo da barra de progresso.
+Ao clicar, abre modal de confirmação: &quot;Tem certeza? O processamento atual será cancelado.&quot; / &quot;Are you sure? Current processing will be cancelled.&quot;
+Após confirmação, o job é cancelado via endpoint, a UI volta ao estado idle e aceita novo upload.
+
+5. Barra de Progresso — Linha de Processamento
+5.1 Design &amp; Animação
+A barra de progresso é o elemento central de feedback durante o processamento. Deve comunicar confiança, não ansiedade.
+
+Layout: barra horizontal segmentada em 5 fases, com ícones circulares conectados por linhas. Estilo &quot;stepper&quot; (similar a checkout de e-commerce, mas com estética musical).
+Fase ativa: ícone pulsa suavemente (scale 1.0 → 1.05, ease-in-out, 1.5s loop). Linha entre fases anteriores e ativa fica preenchida com gradiente (accent color). Linha futura fica cinza claro.
+Fase completa: ícone recebe checkmark animado (stroke-dashoffset), cor sólida de sucesso (verde suave).
+Texto dinâmico: abaixo da barra, texto curto do estado atual + microcopy descritivo (rotaciona a cada 3s com fade transition).
+Duração estimada: se o backend fornecer estimativa, exibir &quot;Tempo estimado: ~2 min&quot; / &quot;Estimated time: ~2 min&quot;. Se não, exibir animação de pontos (&quot;...&quot;).
+Erro em fase específica: ícone da fase muda para ícone de erro (X vermelho), texto exibe mensagem de erro, botão de retry aparece.
+
+5.2 Estados, Rótulos e Mapeamento Backend
+
+Estado
+Rótulo PT
+Rótulo EN
+Microcopy PT
+Microcopy EN
+Backend
+1. Uploading
+Enviando
+Uploading
+Transferindo seu áudio para o servidor...
+Transferring audio to server...
+Upload via multipart; armazena em object storage (S3/Minio)
+2. Analyzing
+Analisando
+Analyzing
+Verificando formato, duração e qualidade...
+Checking format, duration &amp; quality...
+FFprobe: sample rate, canais, duração, codec; normalização se necessário
+3. Transcribing
+Transcrevendo
+Transcribing
+Ouvindo as notas com inteligência artificial...
+Listening to notes with AI...
+Magenta Onsets and Frames: audio → MIDI; modelo roda localmente no backend
+4. Converting
+Convertendo
+Converting
+Transformando MIDI em partitura...
+Converting MIDI to sheet music...
+music21: parse MIDI, quantiza, gera MusicXML; aplica key/time signature detection
+5. Ready
+Pronto!
+Ready!
+Sua partitura está pronta para download.
+Your score is ready to download.
+Arquivos finais (MusicXML, MIDI, log) movidos para storage acessível; status atualizado
+
+5.3 Microcopy Adicional por Estado (Rotação)
+Para manter o usuário engajado durante a espera, o microcopy rotaciona frases a cada 3 segundos:
+
+Estado: Transcribing (mais longo, ~30s a 3min)
+&quot;Identificando notas e ritmos...&quot; / &quot;Identifying notes and rhythms...&quot;
+&quot;Magenta está ouvindo cada detalhe...&quot; / &quot;Magenta is listening to every detail...&quot;
+&quot;Separando melodia e harmonia...&quot; / &quot;Separating melody and harmony...&quot;
+&quot;Quase lá... as notas estão tomando forma.&quot; / &quot;Almost there... notes are taking shape.&quot;
+
+Estado: Converting
+&quot;Organizando compassos e claves...&quot; / &quot;Organizing measures and clefs...&quot;
+&quot;Aplicando quantização rítmica...&quot; / &quot;Applying rhythmic quantization...&quot;
+&quot;Gerando sua partitura digital...&quot; / &quot;Generating your digital score...&quot;
+
+6. Tela de Resultado
+6.1 Layout e Visualização
+A tela de resultado é o momento de &quot;recompensa&quot; do usuário. Deve ser visualmente satisfatória.
+
+Preview da Partitura: renderização do MusicXML usando OpenSheetMusicDisplay (OSMD) ou VexFlow. A partitura é exibida em um container responsivo com scroll horizontal se necessário. Fundo branco (mesmo em dark mode) para simular papel de partitura. Zoom control (+/–) disponível.
+Player inline (Fase 2): barra de playback sincronizada com a partitura — destaca a nota/compasso atual durante reprodução MIDI.
+Informações do arquivo: card com nome original, duração, tonalidade detectada, compasso, número de notas, tempo estimado (BPM).
+
+6.2 Botões de Download
+Botão
+PT
+EN
+Primário
+Baixar MusicXML
+Download MusicXML
+Secundário
+Baixar MIDI
+Download MIDI
+Terciário (discreto)
+Baixar log de processamento
+Download processing log
+Ação (Fase 2)
+Reprocessar com ajustes
+Reprocess with adjustments
+
+6.3 Opção de Reprocessamento (Fase 2)
+Botão &quot;Reprocessar com ajustes&quot; abre painel lateral com parâmetros:
+Quantização: slider (1/4, 1/8, 1/16, 1/32). Default: automático.
+Sensibilidade de onset: slider 0–100%. Default: 50%.
+Instrumento hint: dropdown (Piano, Violão, Voz, Outro). Ajuda o modelo a priorizar frequências.
+Forçar mono: toggle. Útil para gravações stereo com instrumento solo.
+Ao reprocessar, o job entra na fila novamente e a progress bar reinicia a partir de &quot;Analyzing&quot;.
+6.4 Textos da Tela
+Elemento
+PT
+EN
+Título
+Sua partitura está pronta!
+Your score is ready!
+Subtítulo
+Visualize, baixe ou ajuste o resultado.
+Preview, download, or adjust the result.
+Preview label
+Pré-visualização da Partitura
+Score Preview
+Info card title
+Detalhes do Áudio
+Audio Details
+Novo upload link
+Converter outro áudio
+Convert another audio
+Qualidade aviso
+A precisão depende da qualidade da gravação e complexidade musical.
+Accuracy depends on recording quality and musical complexity.
+
+7. Histórico / Últimos Arquivos
+7.1 Descrição do Componente
+Seção acessível via sidebar ou tab na tela principal. Lista os últimos processamentos do usuário em ordem cronológica decrescente.
+7.2 Dados Exibidos
+Campo
+Descrição PT
+Descrição EN
+Nome do arquivo
+Nome original do áudio enviado
+Original audio filename
+Data/hora
+Timestamp do upload (formato local)
+Upload timestamp (local format)
+Status
+Concluído / Erro / Processando
+Completed / Error / Processing
+Duração do áudio
+Ex.: 3:24
+E.g.: 3:24
+Tamanho
+Ex.: 12.4 MB
+E.g.: 12.4 MB
+Ações rápidas
+Botões: ver resultado, baixar, excluir
+Buttons: view result, download, delete
+
+7.3 Paginação e Filtros
+MVP: lista simples dos últimos 10 itens, sem paginação (scroll único).
+Fase 2: paginação (10/página), filtro por status (Sucesso/Erro), busca por nome de arquivo.
+7.4 Política de Retenção
+Padrão: arquivos retidos por 7 dias após processamento. Justificativa: equilíbrio entre conveniência e custo de storage.
+Usuário pode excluir individualmente a qualquer momento (botão de lixeira com confirmação).
+&quot;Limpar todo o histórico&quot; disponível nas Configurações.
+Fase 2 (plano pro): retenção de 30 dias.
+7.5 Textos
+Elemento
+PT
+EN
+Título da seção
+Histórico
+History
+Vazio
+Nenhuma conversão realizada ainda.
+No conversions yet.
+Retenção aviso
+Arquivos são mantidos por 7 dias.
+Files are kept for 7 days.
+Botão excluir
+Excluir
+Delete
+Confirmação excluir
+Tem certeza? Esta ação não pode ser desfeita.
+Are you sure? This action cannot be undone.
+
+8. Conta / Perfil / Configurações
+8.1 Campos do Perfil
+Campo
+PT
+EN
+Nome
+Nome de exibição
+Display name
+E-mail
+E-mail da conta
+Account email
+Idioma
+Idioma da interface (PT/EN)
+Interface language (PT/EN)
+Tema
+Tema visual (Claro/Escuro/Sistema)
+Visual theme (Light/Dark/System)
+Privacidade
+Consentimento de uso de dados para melhoria do modelo
+Data usage consent for model improvement
+
+8.2 Gerenciamento de Arquivos
+&quot;Limpar histórico completo&quot; — exclui todos os arquivos e metadados do usuário.
+&quot;Baixar meus dados&quot; (Fase 2) — export de todos os arquivos processados em .zip (LGPD: portabilidade).
+&quot;Excluir minha conta&quot; — remoção completa, com confirmação por e-mail.
+8.3 Permissões
+Usuário único: acessa apenas seus próprios dados.
+Admin (interno): acesso a métricas, logs, gerenciamento de fila. Não acessa conteúdo dos usuários.
+9. Localização PT/EN
+9.1 Estratégia
+Todas as strings de UI são externalizadas em arquivos de tradução (JSON ou similar).
+Detecção automática do idioma do navegador (Accept-Language) no primeiro acesso.
+Toggle manual sempre visível no header (bandeirinha ou &apos;PT | EN&apos;).
+Preferência persistida na conta do usuário (se logado) e em cookie/localStorage (se anônimo).
+9.2 Exemplo de Package de Tradução (Amostra)
+
+Chave
+PT
+EN
+upload.title
+Arraste seu áudio aqui
+Drop your audio here
+upload.subtitle
+ou clique para selecionar
+or click to select
+upload.button
+Enviar áudio
+Upload audio
+upload.limit
+Máx. 200 MB
+Max 200 MB
+progress.uploading
+Enviando
+Uploading
+progress.analyzing
+Analisando
+Analyzing
+progress.transcribing
+Transcrevendo
+Transcribing
+progress.converting
+Convertendo
+Converting
+progress.ready
+Pronto!
+Ready!
+result.title
+Sua partitura está pronta!
+Your score is ready!
+result.download.xml
+Baixar MusicXML
+Download MusicXML
+result.download.midi
+Baixar MIDI
+Download MIDI
+result.download.log
+Baixar log
+Download log
+history.title
+Histórico
+History
+history.empty
+Nenhuma conversão ainda.
+No conversions yet.
+error.format
+Formato não suportado.
+Unsupported format.
+error.size
+Arquivo muito grande.
+File too large.
+error.network
+Erro de conexão. Tente novamente.
+Connection error. Try again.
+error.transcription
+Falha na transcrição.
+Transcription failed.
+error.conversion
+Erro na conversão.
+Conversion error.
+settings.title
+Configurações
+Settings
+settings.language
+Idioma
+Language
+settings.theme
+Tema
+Theme
+settings.theme.light
+Claro
+Light
+settings.theme.dark
+Escuro
+Dark
+settings.theme.system
+Sistema
+System
+privacy.notice
+Seus arquivos são processados e excluídos em 7 dias.
+Your files are processed and deleted within 7 days.
+common.cancel
+Cancelar
+Cancel
+common.confirm
+Confirmar
+Confirm
+common.delete
+Excluir
+Delete
+common.retry
+Tentar novamente
+Try again
+common.close
+Fechar
+Close
+
+10. Dark / Light Mode
+10.1 Diretrizes Visuais
+
+Propriedade
+Light Mode
+Dark Mode
+Background primario
+#FFFFFF
+#1A1A2E
+Background secundário
+#F8F9FA
+#16213E
+Texto primário
+#2C3E50
+#E8E8E8
+Texto secundário
+#7F8C8D
+#A0A0B0
+Accent (brand)
+#3498DB
+#5DADE2
+Sucesso
+#27AE60
+#2ECC71
+Erro
+#E74C3C
+#FF6B6B
+Borda/separador
+#E0E0E0
+#2D2D44
+Card background
+#FFFFFF
+#1E1E36
+Input background
+#F5F5F5
+#252540
+
+10.2 Recomendações
+Contraste mínimo WCAG AA (4.5:1 para texto normal, 3:1 para texto grande).
+Ícones: usar versões outline em light, filled em dark (melhor visibilidade).
+Ilustrações: adaptar opacidade e saturacao. Em dark mode, reduzir brilho de imagens em 10-15%.
+A partitura renderizada (OSMD) SEMPRE tem fundo branco, independente do tema.
+Animações: manter velocidade e easing iguais. Em dark mode, ajustar glow/shadow para não &quot;vazar&quot; demais.
+Transição entre temas: fade suave de 200ms em todo o body.
+10.3 Comportamento
+Padrão: segue preferência do sistema (prefers-color-scheme).
+Toggle no header (sol/lua icon) permite override manual.
+Preferência persistida em localStorage + campo do perfil do usuário.
+
+11. Design Estético — Moodboard Verbal
+11.1 Conceito Central
+&quot;Onde a música encontra a tecnologia.&quot; O ScoreFlow deve transmitir sofisticação, precisão e calor humano. Não é um dashboard de DevOps — é uma ferramenta para artistas. O visual deve evocar a sensação de abrir uma partitura nova enquanto celebra o processo tecnológico que a criou.
+
+11.2 Elementos Visuais Recorrentes
+Ondas sonoras estilizadas como elementos decorativos (backgrounds, dividers, loading).
+Pentagramas e claves como motifs gráficos sutis (não literal, abstrato).
+Piano roll fragments como padrão de textura em cards e headers.
+Linhas de tempo / timelines como metáfora visual para o processamento.
+Partículas sutis: pontos flutuantes que simulam notas musicais em transições.
+11.3 Tipografia
+Headlines: Inter, Satoshi ou Space Grotesk (geométrica, moderna, excelente legibilidade).
+Body: Inter ou system-ui (para performance e familiaridade).
+Partitura/código: JetBrains Mono ou Fira Code (monospace, para exibir nomes de arquivo/log).
+Tom de voz: profissional mas acolhedor. Fala COM o músico, não SOBRE tecnologia. Evita jargão de ML. Usa metáforas musicais quando possível.
+
+11.4 Três Variações de Estilo
+
+Variação A: Minimal
+Limpo, muito espaço em branco, tipografia como protagonista. Inspiração: Notion, Linear, Apple Music (seção clássica). Ícones line-weight fino. Sem gradientes. Animações sutis (opacity, translate).
+Paleta 1: #FFFFFF, #F7F9FC, #1A1A2E, #3B82F6 (azul vibrante), #10B981 (verde menta).
+Paleta 2: #FAFAFA, #F0EDE8, #1C1917, #7C3AED (violeta), #F59E0B (âmbar).
+
+Variação B: Neo-Tech
+Dark-first, gradientes sutis, glassmorphism leve. Inspiração: Spotify, Vercel, GitHub Dark. Borda luminosa em elementos ativos. Efeito blur em overlays. Animações com spring physics.
+Paleta 1: #0F0F1A, #1A1A2E, #E8E8E8, #00D4FF (ciano neon), #FF6B9D (rosa coral).
+Paleta 2: #0D1117, #161B22, #C9D1D9, #58A6FF (azul GitHub), #3FB950 (verde GitHub).
+
+Variação C: Retro-Analog
+Quente, texturas de papel, tipografia serifada para headers. Inspiração: capas de vinil, estúdios analógicos, VU meters. Ícones com cantos arredondados, sombras suaves. Animações com easing &quot;bouncy&quot;.
+Paleta 1: #FFF8F0, #F5E6D3, #2D1B0E, #C05621 (terracota), #2B6CB0 (azul vintage).
+Paleta 2: #FFFDF7, #E8DDD3, #1A202C, #9B2C2C (vermelho vinícola), #2C7A7B (teal retrô).
+
+Recomendação: para o MVP, começar com Variação A (Minimal) — menor custo de implementação, melhor acessibilidade, fácil de escalar. Variação B pode ser adotada em Fase 2 como tema alternativo.
+
+12. Acessibilidade
+12.1 Checklist Mínimo (MVP)
+Contraste: todos os textos atendem WCAG AA (4.5:1 normal, 3:1 grande). Verificar com Lighthouse/axe.
+Labels: todos os inputs, botões e áreas interativas têm aria-label ou label associado.
+Navegação por teclado: tab order lógico, focus visible em todos os elementos interativos, atalhos (Enter para upload, Escape para fechar modais).
+Leitores de tela: aria-live regions para atualizações da progress bar (announcements de cada estado). Role=&apos;progressbar&apos; com aria-valuenow.
+Drag &amp; drop: alternativa por botão de seleção de arquivo (nunca depender só de drag).
+Animações: respeitar prefers-reduced-motion — desativar pulsações e partículas, manter transições instantâneas.
+Idioma: atributo lang correto no HTML (&quot;pt-BR&quot; ou &quot;en&quot;) atualizado dinamicamente.
+Mensagens de erro: lidas automaticamente por screen readers via aria-live=&quot;assertive&quot;.
+12.2 Player / Piano Roll (Fase 2)
+Player de áudio com controles nativos (play/pause/seek) acessíveis por teclado.
+Piano roll: fornecer descrição textual alternativa (&quot;Partitura com 48 notas, compasso 4/4, tonalidade de Dó maior&quot;).
+Notas na partitura renderizada: se interativas (Fase 2, edição), cada nota deve ser focable e descrita.
+Preferência de alto contraste na partitura: opção de renderizar com linhas mais grossas e notas maiores.
+
+13. Arquitetura Conceitual (Alto Nível)
+13.1 Diagrama Textual de Componentes
+
+[Browser/Client]
+    │
+    ├── Upload Component → POST /api/upload → [API Gateway / Backend]
+    ├── Progress Polling → GET  /api/jobs/{id}/status
+    └── Result Fetch    → GET  /api/jobs/{id}/result
+
+[API Gateway / Backend]
+    │
+    ├── Auth Middleware (JWT)
+    ├── Upload Handler → valida, salva em Object Storage (S3/Minio)
+    ├── Job Queue (Redis/BullMQ ou Celery)
+    │       │
+    │       ├── Worker: Analyze (FFprobe)
+    │       ├── Worker: Transcribe (Magenta local)
+    │       └── Worker: Convert (music21)
+    │
+    ├── Status Store (Redis) → mapeia job_id → estado atual
+    └── Result Storage (S3/Minio) → MusicXML, MIDI, log
+
+[Object Storage]
+    └── /uploads/{user_id}/{job_id}/original.mp3
+    └── /results/{user_id}/{job_id}/output.musicxml
+    └── /results/{user_id}/{job_id}/output.mid
+    └── /results/{user_id}/{job_id}/process.log
+
+13.2 Endpoints (Descrição)
+
+Endpoint
+Método
+Descrição
+/api/upload
+POST
+Recebe arquivo multipart. Valida formato/tamanho. Cria job na fila. Retorna job_id.
+/api/jobs/{id}/status
+GET
+Retorna estado atual do job (uploading, analyzing, transcribing, converting, ready, error), progresso percentual estimado e mensagem.
+/api/jobs/{id}/result
+GET
+Retorna URLs assinadas para download dos arquivos de resultado (MusicXML, MIDI, log). Disponível apenas quando status = ready.
+/api/jobs/{id}/cancel
+POST
+Cancela job em andamento. Remove da fila ou envia sinal de cancelamento ao worker.
+/api/history
+GET
+Lista histórico de jobs do usuário autenticado. Suporta paginação (?page, ?limit).
+/api/jobs/{id}
+DELETE
+Exclui job e todos os arquivos associados do storage.
+/api/user/profile
+GET/PUT
+Leitura e atualização do perfil (nome, idioma, tema, consentimento).
+
+13.3 Fila de Jobs e Status
+Cada job possui um ID único (UUID v4).
+Status armazenado em Redis com TTL de 24h (cleanup automático).
+Client faz polling a cada 2s no endpoint de status. Justificativa: simples no MVP; Fase 2 pode migrar para WebSocket/SSE.
+Cada worker atualiza o status no Redis ao iniciar e finalizar sua etapa.
+Se o worker falha, o status é marcado como &apos;error&apos; com mensagem específica da etapa.
+13.4 Mapeamento Backend → Progress Bar
+Status Backend
+Estado UI
+Progresso
+Trigger de Transição
+upload_in_progress
+Uploading
+0-20%
+Upload HTTP progress event
+upload_complete / analyze_started
+Analyzing
+20-35%
+Worker de análise inicia
+analyze_complete / transcribe_started
+Transcribing
+35-75%
+Worker Magenta inicia
+transcribe_complete / convert_started
+Converting
+75-95%
+Worker music21 inicia
+convert_complete
+Ready
+100%
+Arquivos movidos para resultado
+error_*
+Error
+Parado
+Qualquer worker reporta falha
+
+14. Políticas de Privacidade &amp; Retenção (LGPD)
+14.1 Aviso no Upload
+Texto exibido discretamente abaixo da área de upload, antes do botão de enviar:
+
+PT: &quot;Ao enviar seu arquivo, você concorda com nossos Termos de Uso. Seus dados são processados exclusivamente para gerar a partitura e serão excluídos automaticamente em 7 dias. Você pode excluir seus dados a qualquer momento nas Configurações.&quot;
+EN: &quot;By uploading your file, you agree to our Terms of Service. Your data is processed solely to generate the score and will be automatically deleted within 7 days. You can delete your data at any time in Settings.&quot;
+
+14.2 Política de Retenção
+Arquivos de áudio originais: excluídos após processamento (imediatamente após conversão). Justificativa: não há razão para reter o áudio original após o pipeline completar.
+Arquivos de resultado (MusicXML, MIDI, log): retidos por 7 dias. Usuário pode baixar nesse período.
+Metadados do histórico: retidos por 30 dias (apenas nome, data, status — sem conteúdo do arquivo).
+Usuário pode: excluir itens individuais, limpar todo histórico, solicitar exclusão total da conta.
+LGPD / compliance: fornecer &quot;Baixar meus dados&quot; (Fase 2) para atender ao direito de portabilidade.
+14.3 Botão de Exclusão Imediata
+Presente em cada item do histórico e nas Configurações. Fluxo: click → modal de confirmação → exclusão via endpoint DELETE → feedback visual (item some com animação fade).
+
+15. Licença / Uso do Magenta &amp; Weights
+15.1 Alerta Legal
+PT: O Magenta (Google) é distribuído sob licença Apache 2.0, que permite uso comercial. Porém, os pesos (weights) dos modelos pré-treinados podem ter licenças diferentes ou restrições adicionais. Antes do lançamento, é obrigatório verificar a licença específica dos checkpoints utilizados (ex.: Onsets and Frames). O music21 é distribuído sob licença BSD, sem restrições comerciais.
+
+EN: Magenta (Google) is distributed under the Apache 2.0 license, which permits commercial use. However, pretrained model weights may carry different licenses or additional restrictions. Before launch, it is mandatory to verify the specific license of the checkpoints being used (e.g., Onsets and Frames). music21 is distributed under a BSD license with no commercial restrictions.
+
+15.2 Nota sobre Magenta Studio
+O &quot;Magenta Studio&quot; é um plugin Ableton e NÃO deve ser usado como serviço remoto ou API. Alternativas recomendadas:
+Produção (recomendado): rodar os modelos Magenta localmente no backend (Python, TensorFlow). Controle total, sem dependência externa.
+Client-side (experimental): magenta.js (TensorFlow.js) pode rodar no browser para demos leves, mas não é adequado para processamento pesado.
+API de terceiros: não há API oficial do Google para Magenta. Evitar dependências não oficiais.
+
+16. Controle de Custos e Planos
+16.1 Limitações no MVP (Free Tier)
+Máximo de 5 conversões por dia por usuário. Justificativa: limita abuso sem prejudicar uso legítimo.
+Tamanho máximo: 200 MB por arquivo.
+Duração máxima: 10 minutos (hard limit para proteção de custo).
+Processamento: CPU (fila standard). Tempo médio estimado: 1–3 minutos para áudio de 3 min.
+Retenção: 7 dias.
+16.2 Plano Pro (Fase 2)
+Conversões ilimitadas (fair use: soft limit de 50/dia).
+Processamento rápido: GPU dedicada. Tempo médio: 15–45 segundos.
+Retenção: 30 dias.
+Reprocessamento com parâmetros.
+Export adicional (PDF, LilyPond).
+Prioridade na fila.
+16.3 Mensagens de Quota
+Situação
+PT
+EN
+Quota atingida
+Você atingiu o limite de 5 conversões hoje. Volte amanhã ou faça upgrade.
+You have reached today&apos;s 5 conversion limit. Come back tomorrow or upgrade.
+Arquivo longo
+Áudio acima de 10 minutos não é suportado no plano gratuito.
+Audio over 10 minutes is not supported on the free plan.
+17. Métricas &amp; Observabilidade
+17.1 Métricas Prioritárias
+
+Métrica
+Descrição
+Alerta Sugerido
+Jobs por hora/dia
+Volume de processamentos
+&gt; 2x média → alerta de escala
+Latência total (p50, p95)
+Tempo upload → ready
+p95 &gt; 5min → alerta
+Latência por etapa
+Tempo de cada worker individualmente
+Transcribing p95 &gt; 3min → investigar
+Taxa de falha geral
+% de jobs com status error
+&gt; 10% em 1h → alerta crítico
+Taxa de falha por etapa
+Qual etapa falha mais
+Uma etapa &gt; 20% → bug
+Tamanho médio de upload
+MB dos arquivos enviados
+Monitorar para capacity planning
+Conversões por usuário
+Uso médio e distribuição
+Detectar abuso (&gt; 20/dia)
+Churn de downloads
+% usuários que baixam o resultado
+&lt; 50% → investigar qualidade
+Retenção semanal
+Usuários que voltam em 7 dias
+&lt; 15% → problema de valor
+Erros de upload
+Falhas de validação (formato, tamanho)
+Alto volume → melhorar UX/docs
+
+17.2 Ferramentas Sugeridas
+Logs: estruturados (JSON), centralizados (CloudWatch, Datadog, ou Loki).
+Métricas: Prometheus + Grafana ou equivalente em cloud.
+Alertas: PagerDuty/Slack para on-call em métricas críticas.
+APM: rastreamento de cada job com trace ID para debug fim-a-fim.
+
+18. Critérios de Aceite do MVP
+Lista objetiva para validar o MVP como &quot;pronto para lançamento&quot;:
+
+Upload de 1 arquivo MP3 ou WAV (até 200 MB) funciona corretamente com validação.
+Barra de progresso exibe os 5 estados (Uploading, Analyzing, Transcribing, Converting, Ready) com transições visuais.
+Música de teste (violão solo, mono, 2 min) é convertida com sucesso para MusicXML.
+Preview da partitura renderizada corretamente na tela de resultado (OSMD ou VexFlow).
+Download funcional dos 3 arquivos: MusicXML, MIDI, log.
+Histórico exibe os últimos 10 processamentos com status e ações rápidas.
+Interface completamente traduzida PT/EN com toggle funcional.
+Dark/Light mode funcional com persistência de preferência.
+Mensagens de erro claras em cada etapa de falha (pelo menos 5 tipos de erro).
+Aviso de privacidade LGPD visível no upload.
+Contraste WCAG AA em ambos os temas.
+Navegação por teclado funcional nos principais fluxos.
+Tempo de processamento &lt; 3 minutos para áudio de 3 min mono (em CPU).
+Quota de 5 conversões/dia por usuário funcional.
+Exclusão de arquivo pelo usuário funcional.
+
+19. Riscos &amp; Mitigação
+
+Risco
+Descrição
+Impacto
+Mitigação
+Qualidade polifonia
+Magenta Onsets and Frames tem precisão limitada em polifonia densa (piano, orquestra).
+Alto — frustração do usuário
+MVP foca em mono/duo. UX mostra aviso em áudio complexo. Fase 2: Demucs para separação prévia.
+Custo GPU
+Processamento por GPU é caro se escalar.
+Médio — sustentabilidade
+MVP roda em CPU. GPU apenas no plano Pro (Fase 2). Auto-scaling com spot instances.
+Direitos autorais
+Usuários podem enviar música protegida.
+Médio — legal
+Termos de uso claros (usuário responsável). Exclusão automática em 7 dias. Não armazenar áudio original após processamento.
+Latência alta
+Áudios longos podem demorar &gt; 5 min.
+Médio — UX
+Hard limit de 10 min. Aviso progressivo. Feedback de progresso detalhado mantendo usuário engajado.
+Dependência Magenta
+Projeto Magenta pode ser descontinuado.
+Alto — estratégico
+Abstrair pipeline para trocar modelo facilmente. Avaliar alternativas: Basic Pitch (Spotify), MT3.
+Abuso / DDoS
+Usuários maliciosos sobrecarregam fila.
+Médio — operação
+Rate limiting, quota por usuário, CAPTCHA em caso de pico, cloudflare.
+LGPD compliance
+Retenção ou processamento inadequado.
+Alto — legal
+Política clara, exclusão automática, botão de exclusão imediata, audit log.
+
+20. Sugestões Adicionais / Inovações
+20.1 MVP
+Detecção automática mono/stereo: se stereo, oferecer conversão automática para mono antes da transcrição (melhora qualidade significativamente para instrumentos solo). Custo zero de implementação, alto impacto na qualidade.
+&quot;Confidence score&quot; por nota: o Magenta Onsets and Frames retorna probabilidades. Exibir notas de baixa confiança com cor diferente na partitura (ex.: cinza claro). Ajuda o usuário a saber o que revisar.
+
+20.2 Fase 2
+Separação de stems prévia: integrar Demucs ou Spleeter para separar instrumento antes da transcrição. Permite transcrição por stem (vocal, guitarra, bateria, baixo). Melhoria dramática na qualidade de polifonia.
+Comparação A/B: permitir ao usuário comparar dois resultados de reprocessamento lado a lado.
+Webhook / Callback: para usuários de API (Fase 2), notificar via webhook quando o processamento terminar.
+Onboarding interativo: primeira vez do usuário, mostrar tooltips guiados (&quot;Arraste um áudio aqui&quot;, &quot;Aqui você acompanha o progresso&quot;). Reduz fricção e abandono.
+Collaborative playlists: professores podem enviar múltiplos áudios (batch) e compartilhar resultados com alunos via link.
+
+20.3 Opcional / Exploração
+Basic Pitch como alternativa: modelo da Spotify (MIT license) para pitch detection. Mais leve, mais rápido, excelente para instrumentos mono—pode ser oferecido como modo &quot;rápido&quot; ao lado do Magenta.
+Export para Musescore/Finale: além de MusicXML, oferecer .mscz (Musescore nativo) para fluxo mais direto.
+Feedback loop: usuários reportam notas erradas na partitura. Esses dados podem ser usados para fine-tuning futuro do modelo.
+PWA + offline: permitir que o usuário instale como app e use offline com magenta.js (client-side, limitado).
+Integração com DAWs: plugin VST/AU que envia áudio diretamente para o ScoreFlow e recebe MIDI de volta.
+
+21. Traduções Consolidadas — Strings UI (PT/EN)
+Seção de referência rápida para implementação.
+
+21.1 Botões
+Contexto
+PT
+EN
+Upload principal
+Enviar áudio
+Upload audio
+Upload (durante)
+Enviando...
+Uploading...
+Upload (bloqueado)
+Processando...
+Processing...
+Download MusicXML
+Baixar MusicXML
+Download MusicXML
+Download MIDI
+Baixar MIDI
+Download MIDI
+Download log
+Baixar log
+Download log
+Reprocessar
+Reprocessar com ajustes
+Reprocess with adjustments
+Cancelar
+Cancelar
+Cancel
+Confirmar
+Confirmar
+Confirm
+Excluir
+Excluir
+Delete
+Tentar novamente
+Tentar novamente
+Try again
+Fechar
+Fechar
+Close
+Novo upload
+Converter outro áudio
+Convert another audio
+Limpar histórico
+Limpar histórico
+Clear history
+
+21.2 Estados da Progress Bar
+Estado
+Curto PT
+Curto EN
+Longo PT
+Longo EN
+Uploading
+Enviando
+Uploading
+Transferindo seu áudio para o servidor...
+Transferring audio to server...
+Analyzing
+Analisando
+Analyzing
+Verificando formato, duração e qualidade...
+Checking format, duration &amp; quality...
+Transcribing
+Transcrevendo
+Transcribing
+Ouvindo as notas com inteligência artificial...
+Listening to notes with AI...
+Converting
+Convertendo
+Converting
+Transformando MIDI em partitura...
+Converting MIDI to sheet music...
+Ready
+Pronto!
+Ready!
+Sua partitura está pronta para download.
+Your score is ready to download.
+
+21.3 Mensagens de Erro
+Erro
+PT
+EN
+Formato inválido
+Formato não suportado. Envie um arquivo MP3 ou WAV.
+Unsupported format. Please upload an MP3 or WAV file.
+Tamanho excedido
+Arquivo excede o limite de 200 MB.
+File exceeds the 200 MB limit.
+Múltiplos arquivos
+Envie apenas um arquivo por vez.
+Please upload one file at a time.
+Arquivo corrompido
+Não foi possível ler este arquivo.
+Unable to read this file.
+Erro de rede
+Erro de conexão. Tente novamente.
+Connection error. Try again.
+Falha na transcrição
+Não foi possível transcrever este áudio. Tente um arquivo mais simples.
+Could not transcribe this audio. Try a simpler file.
+Falha na conversão
+Erro ao gerar a partitura. O MIDI parcial está disponível.
+Error generating score. Partial MIDI is available.
+Timeout
+O processamento demorou demais. Tente um áudio mais curto.
+Processing took too long. Try shorter audio.
+Quota atingida
+Limite diário atingido. Volte amanhã.
+Daily limit reached. Come back tomorrow.
+Erro genérico
+Algo deu errado. Tente novamente.
+Something went wrong. Try again.
+
+21.4 Tooltips e Microcopy
+Contexto
+PT
+EN
+Drag hover
+Solte o arquivo aqui
+Drop your file here
+Processando (tooltip upload)
+Aguarde o processamento atual
+Wait for current processing
+Duração longa (aviso)
+Áudio longo: a transcrição pode demorar mais.
+Long audio: transcription may take longer.
+Cancelar processamento
+Cancelar processamento atual?
+Cancel current processing?
+Confirmar cancelamento
+Tem certeza? O processamento será cancelado.
+Are you sure? Processing will be cancelled.
+Preview info
+A precisão depende da qualidade da gravação.
+Accuracy depends on recording quality.
+Dark mode toggle
+Alternar tema
+Toggle theme
+Idioma toggle
+Mudar idioma
+Change language
+Histórico vazio
+Nenhuma conversão realizada ainda.
+No conversions yet.
+Retenção
+Arquivos são mantidos por 7 dias.
+Files are kept for 7 days.
+
+22. Notas Finais
+Este documento fornece tudo o que o time de design e engenharia precisa para iniciar o desenvolvimento do MVP do ScoreFlow. As decisões de design são justificadas com foco em simplicidade, custo controlado e experiência do músico.
+
+Próximos passos recomendados:
+Validar o fluxo UX com 3–5 músicos reais (teste com protótipo Figma).
+Configurar ambiente de backend com Magenta local + music21.
+Implementar upload + progress bar como primeiro spike técnico.
+Rodar testes de qualidade com 10 áudios variados (violão mono, piano solo, voz, flauta).
+Definir a identidade visual final com base nas 3 variações propostas.
+
+
+— Fim do Documento —

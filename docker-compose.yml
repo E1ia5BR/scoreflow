@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: always
+
+  backend-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - redis
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - REDIS_URL=redis://redis:6379/0
+      - BASIC_PITCH_URL=http://basic_pitch_worker:8001/transcribe
+      - MAGENTA_URL=http://magenta_worker:8002/transcribe
+
+  backend-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A worker.tasks worker --loglevel=info -P solo
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - redis
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - REDIS_URL=redis://redis:6379/0
+      - BASIC_PITCH_URL=http://basic_pitch_worker:8001/transcribe
+      - MAGENTA_URL=http://magenta_worker:8002/transcribe
+
+  basic_pitch_worker:
+    build:
+      context: ./backend/basic_pitch_service
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    restart: unless-stopped
+
+  magenta_worker:
+    build:
+      context: ./backend/magenta_service
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8002"
+    restart: unless-stopped
